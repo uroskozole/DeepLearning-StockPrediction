@@ -4,3 +4,4 @@ data/*
 __pycache__/
 
 src/dl_final_project.egg-info
+src/sandbox.ipynb
