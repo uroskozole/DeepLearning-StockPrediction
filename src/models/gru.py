@@ -3,10 +3,10 @@ import torch.nn as nn
 
 
 
-class LSTMRegressor(nn.Module):
+class GRURegressor(nn.Module):
 
     def __init__(self, hidden_dim, input_dim, reduce=False, embedding_dim=100):
-        super(LSTMRegressor, self).__init__()
+        super(GRURegressor, self).__init__()
         self.hidden_dim = hidden_dim
         self.input_dim = input_dim
         self.reduce = reduce
@@ -17,7 +17,7 @@ class LSTMRegressor(nn.Module):
             
         # The LSTM takes previous day's stock events as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
-        self.lstm = nn.LSTM(self.input_dim, hidden_dim)
+        self.gru = nn.GRU(self.input_dim, hidden_dim)
 
         # The linear layer that outputs regression value for stock price change
         self.linear = nn.Linear(hidden_dim, 1)
@@ -26,17 +26,16 @@ class LSTMRegressor(nn.Module):
         # self.lstm.flatten_parameters()
         if self.reduce:
             yesterday = self.mlp(yesterday)
-        lstm_out, _ = self.lstm(yesterday)
+        gru_out, _ = self.gru(yesterday)
         #out = self.linear(lstm_out)
-        out = self.linear(lstm_out.view(len(yesterday), -1)).squeeze()
+        out = self.linear(gru_out.view(len(yesterday), -1)).squeeze()
         return out
     
 
-
-class LSTMMovement(nn.Module):
+class GRUMovement(nn.Module):
 
     def __init__(self, hidden_dim, input_dim, reduce=False, embedding_dim=100):
-        super(LSTMMovement, self).__init__()
+        super(GRUMovement, self).__init__()
         self.hidden_dim = hidden_dim
         self.input_dim = input_dim
         self.reduce = reduce
@@ -47,7 +46,7 @@ class LSTMMovement(nn.Module):
             
         # The LSTM takes previous day's stock events as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
-        self.lstm = nn.LSTM(self.input_dim, hidden_dim)
+        self.gru = nn.GRU(self.input_dim, hidden_dim)
 
         # The linear layer that outputs regression value for stock price change
         self.linear = nn.Linear(hidden_dim, 1)
@@ -59,9 +58,9 @@ class LSTMMovement(nn.Module):
         # self.lstm.flatten_parameters()
         if self.reduce:
             yesterday = self.mlp(yesterday)
-        lstm_out, _ = self.lstm(yesterday)
+        gru_out, _ = self.gru(yesterday)
         #out = self.linear(lstm_out)
-        out = self.linear(lstm_out.view(len(yesterday), -1)).squeeze()
+        out = self.linear(gru_out.view(len(yesterday), -1)).squeeze()
         out = self.sigmoid(out)
         return out
     

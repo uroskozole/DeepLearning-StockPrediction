@@ -9,13 +9,13 @@ import json
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
+from torch.optim.lr_scheduler import StepLR
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error
 
 from data.utils import standardise, prepare_lstm_sequence
-from models.lstm import LSTMRegressor
+from models.gru import GRURegressor
 from experiments.plot_functions import plot_losses, plot_predictions
 
 torch.manual_seed(1)
@@ -25,18 +25,21 @@ device = torch.device('cpu')
     
 
 def parse_args_():
-    parser = argparse.ArgumentParser(description='Train LSTM model')
+    parser = argparse.ArgumentParser(description='Train GRU model')
     parser.add_argument('--epochs', type=int, default=2, help='Number of epochs')
-    parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate')
-    parser.add_argument('--seq_len', type=int, default=10, help='Sequence length')
+    parser.add_argument('--learning_rate', type=float, default=0.00025, help='Learning rate')
+    parser.add_argument('--seq_len', type=int, default=5, help='Sequence length')
     parser.add_argument('--target_col', type=str, default='last_price_krka', help='Target column')
     parser.add_argument('--scheduler', action="store_true", help='Use learning rate scheduler')
-    parser.add_argument('--time-jump', type=int, default=1, help='Time jump for predictions')
+    # parser.add_argument('--sch-gamma', type=, default='results/gru/', help='Path to save results')
+    parser.add_argument('--time-jump', type=int, default=7, help='Time jump for predictions')
     parser.add_argument('--show-plot', action="store_true", help='Show plots of predictions and losses')
+
+
 
     args = parser.parse_args()
     
-    args.results_path = f"results/lstm/{args.time_jump}/seq_len{args.seq_len}_epochs{args.epochs}_lr{args.learning_rate}_scheduler{args.scheduler}/"
+    args.results_path = f"results/gru/{args.time_jump}/seq_len{args.seq_len}_epochs{args.epochs}_lr{args.learning_rate}_scheduler{args.scheduler}/"
     os.makedirs(args.results_path, exist_ok=True)
 
 
@@ -55,7 +58,7 @@ def encode_labels(df, cat_cols):
         df[col] = le.fit_transform(df[col])
     return df
 
-def train_lstm(X, y, val_df, model, loss_function, optimizer, args):
+def train_gru(X, y, val_df, model, loss_function, optimizer, args):
     val_df = val_df.drop(columns=["date"])
     X_val, y_val = prepare_lstm_sequence(val_df, seq_len=args.seq_len, target_col=args.target_col, time_jump=args.time_jump)
     
@@ -63,7 +66,7 @@ def train_lstm(X, y, val_df, model, loss_function, optimizer, args):
     validation_losses = []
 
     if args.scheduler:
-        scheduler = StepLR(optimizer, step_size=20, gamma=0.5)
+        scheduler = StepLR(optimizer, step_size=50, gamma=0.5)
     # train model
     for epoch in range(args.epochs):
         losses = []
@@ -110,12 +113,12 @@ if __name__ == "__main__":
     X, y = prepare_lstm_sequence(train_df, seq_len=args.seq_len, target_col=args.target_col, time_jump=args.time_jump)
 
     # specify the model, optimizer and loss function
-    model = LSTMRegressor(hidden_dim=128, input_dim=len(train_df.columns), reduce=False)#.to(device)
+    model = GRURegressor(hidden_dim=128, input_dim=len(train_df.columns), reduce=False)#.to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
     loss_function = nn.MSELoss()
 
     # train the model
-    model, train_losses, validation_losses = train_lstm(X, y, val_df, model, loss_function, optimizer, args)
+    model, train_losses, validation_losses = train_gru(X, y, val_df, model, loss_function, optimizer, args)
     plot_losses(train_losses, validation_losses, args.target_col, args)
     
     val_y, val_preds = plot_predictions(model, X, y, val_df, args, date_index_train)
@@ -132,5 +135,6 @@ if __name__ == "__main__":
     results["layers"] = 1
     results["opt_epochs"] = int(np.argmin(validation_losses))
     json.dump(results, open(args.results_path + "results.json", "w"))
+    
     
 

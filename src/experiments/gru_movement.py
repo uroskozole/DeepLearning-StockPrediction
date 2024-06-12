@@ -14,9 +14,9 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error
 
-from data.utils import standardise, prepare_lstm_sequence
-from models.lstm import LSTMRegressor
-from experiments.plot_functions import plot_losses, plot_predictions
+from data.utils import standardise, prepare_sequence_movement
+from models.gru import GRUMovement
+from experiments.plot_functions import plot_losses, plot_predictions_movement
 
 torch.manual_seed(1)
 
@@ -27,8 +27,8 @@ device = torch.device('cpu')
 def parse_args_():
     parser = argparse.ArgumentParser(description='Train LSTM model')
     parser.add_argument('--epochs', type=int, default=2, help='Number of epochs')
-    parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate')
-    parser.add_argument('--seq_len', type=int, default=10, help='Sequence length')
+    parser.add_argument('--learning_rate', type=float, default=0.00025, help='Learning rate')
+    parser.add_argument('--seq_len', type=int, default=7, help='Sequence length')
     parser.add_argument('--target_col', type=str, default='last_price_krka', help='Target column')
     parser.add_argument('--scheduler', action="store_true", help='Use learning rate scheduler')
     parser.add_argument('--time-jump', type=int, default=1, help='Time jump for predictions')
@@ -36,7 +36,7 @@ def parse_args_():
 
     args = parser.parse_args()
     
-    args.results_path = f"results/lstm/{args.time_jump}/seq_len{args.seq_len}_epochs{args.epochs}_lr{args.learning_rate}_scheduler{args.scheduler}/"
+    args.results_path = f"results/movement/gru/{args.time_jump}/seq_len{args.seq_len}_epochs{args.epochs}_lr{args.learning_rate}_scheduler{args.scheduler}/"
     os.makedirs(args.results_path, exist_ok=True)
 
 
@@ -57,7 +57,7 @@ def encode_labels(df, cat_cols):
 
 def train_lstm(X, y, val_df, model, loss_function, optimizer, args):
     val_df = val_df.drop(columns=["date"])
-    X_val, y_val = prepare_lstm_sequence(val_df, seq_len=args.seq_len, target_col=args.target_col, time_jump=args.time_jump)
+    X_val, y_val = prepare_sequence_movement(val_df, seq_len=args.seq_len, target_col=args.target_col, time_jump=args.time_jump)
     
     train_losses = []
     validation_losses = []
@@ -87,13 +87,13 @@ def train_lstm(X, y, val_df, model, loss_function, optimizer, args):
         if args.scheduler:
             scheduler.step()
 
-        val_preds = [model(x)[-1].detach().numpy() for x in X_val]
+        val_preds = [int(model(x)[-1].detach().numpy() > 0.4999999) for x in X_val]
         val_y = y_val[:, -1]
-        validation_loss = mean_squared_error(val_preds, val_y)
+        validation_score = np.mean(np.array(val_preds) == val_y.detach().numpy())
                 
-        print(f'Epoch: {epoch}, train MSE: {np.mean(np.array(losses))}, validation MSE: {validation_loss}')
+        print(f'Epoch: {epoch}, train MSE: {np.mean(np.array(losses))}, validation accuracy: {validation_score}')
         train_losses.append(np.mean(np.array(losses)))
-        validation_losses.append(validation_loss)
+        validation_losses.append(validation_score)
     
     return model, train_losses, validation_losses
 
@@ -107,30 +107,30 @@ if __name__ == "__main__":
     
     date_index_train = train_df["date"]
     train_df = train_df.drop(columns=["date"])
-    X, y = prepare_lstm_sequence(train_df, seq_len=args.seq_len, target_col=args.target_col, time_jump=args.time_jump)
+    X, y = prepare_sequence_movement(train_df, seq_len=args.seq_len, target_col=args.target_col, time_jump=args.time_jump)
 
     # specify the model, optimizer and loss function
-    model = LSTMRegressor(hidden_dim=128, input_dim=len(train_df.columns), reduce=False)#.to(device)
+    model = GRUMovement(hidden_dim=128, input_dim=len(train_df.columns), reduce=False)#.to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    loss_function = nn.MSELoss()
+    loss_function = nn.BCELoss()
 
     # train the model
     model, train_losses, validation_losses = train_lstm(X, y, val_df, model, loss_function, optimizer, args)
-    plot_losses(train_losses, validation_losses, args.target_col, args)
+    plot_losses(train_losses, validation_losses, args.target_col, args, movement=True)
     
-    val_y, val_preds = plot_predictions(model, X, y, val_df, args, date_index_train)
+    val_y, val_preds = plot_predictions_movement(model, X, y, val_df, args, date_index_train)
 
     validation_loss = np.min(validation_losses)
     train_loss_val_min = train_losses[np.argmin(validation_losses)]
 
-    print(f"Validation MSE: {validation_loss}")
-    print(f"Training MSE: {train_losses[-1]}")
+    print(f"Validation accuracy: {validation_loss}")
+    print(f"Training logloss: {train_losses[-1]}")
 
     results = dict()
-    results["validation_loss"] = float(validation_loss)
+    results["validation_accuracy"] = float(validation_loss)
     results["training_loss"] = train_losses[-1]
     results["layers"] = 1
-    results["opt_epochs"] = int(np.argmin(validation_losses))
+    results["opt_epochs"] = int(np.argmax(validation_losses))
     json.dump(results, open(args.results_path + "results.json", "w"))
     
 

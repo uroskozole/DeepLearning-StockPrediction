@@ -3,7 +3,7 @@ import pandas as pd
 from data.merge_datasets import create_empty_dataset, merge_all_datasets, correct_dtypes
 
 
-TRAIN_SIZE = .666
+TRAIN_SIZE = .5
 VAL_SIZE = (1 - TRAIN_SIZE) / 2
 TEST_SIZE = VAL_SIZE
 

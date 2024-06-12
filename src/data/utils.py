@@ -18,9 +18,18 @@ def standardise(train_df, val_df, test_df, args):
 
     return train_df, val_df, test_df
 
-def prepare_lstm_sequence(df, seq_len, target_col):
+def prepare_lstm_sequence(df, seq_len, target_col, time_jump):
     X, y = [], []
-    for i in range(len(df) - seq_len):
+    for i in range(len(df) - seq_len - time_jump + 1):
         X.append(df.iloc[i:i + seq_len].values)
-        y.append(df.iloc[i+1 : i+seq_len+1][target_col].values)
+        y.append(df.iloc[i+time_jump : i+seq_len+time_jump][target_col].values)
+    return torch.tensor(X, dtype=torch.float), torch.tensor(y, dtype=torch.float)
+
+def prepare_sequence_movement(df, seq_len, target_col, time_jump):
+    X, y = [], []
+    for i in range(len(df) - seq_len - time_jump + 1):
+        X.append(df.iloc[i:i + seq_len].values)
+        y_mov = df.iloc[i+time_jump-1 : i+seq_len+time_jump][target_col].values
+        y_mov = [int(y_mov[i+1] > y_mov[i]) for i in range(len(y_mov)-1)]
+        y.append(y_mov)
     return torch.tensor(X, dtype=torch.float), torch.tensor(y, dtype=torch.float)

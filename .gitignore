@@ -5,3 +5,7 @@ __pycache__/
 
 src/dl_final_project.egg-info
 src/sandbox.ipynb
+results/
+Report/
+day_forward.ps1
+test_path/
